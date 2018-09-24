@@ -1,0 +1,117 @@
+---
+
+# get host infos:
+# ansible all -m setup --tree /tmp/facts -i inventory.txt
+
+# make sure which python points to python3
+# check for python
+#- name: Check for python and anstall
+#  hosts: hetzner-t1
+#  user: root
+#  tasks:
+#    - name: install python
+#      raw: apt install python
+
+# vars
+
+# install docker environment
+-
+  name: Install docker, kubeadm, etc on server
+  hosts: hetzner-t1
+  user: root
+  tasks:
+    - name: Update Cache
+      apt:
+        update_cache: yes
+
+    - name: Install a list of packages
+      apt:
+        name: "{{ packages }}"
+        state: present
+      vars:
+        packages:
+          - git
+          - wget
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - software-properties-common
+
+    - name: Add key
+      apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        id: 0EBFCD88
+        state: present
+
+    - name: Add repository
+      apt_repository:
+        repo: deb [arch=amd64] https://download.docker.com/linux/ubuntu {{ ansible_lsb.codename }} stable
+        state: present
+
+    - name: apt-get update
+      apt:
+        update_cache: yes
+
+    - name: Install docker-ce
+      apt:
+        force_apt_get: yes
+        name: docker-ce
+        state: present
+
+    - name: add kubernetes key
+      apt_key:
+        url: https://packages.cloud.google.com/apt/doc/apt-key.gpg
+        state: present
+
+    - name: add repo
+      apt_repository:
+        repo: deb http://apt.kubernetes.io/ kubernetes-xenial main
+        filename: /etc/apt/sources.list.d/kubernetes.list
+        state: present
+
+    - name: Install kubeadm, kubelet,
+      apt:
+        name: "{{ pakets }}"
+        state: present
+        update_cache: yes
+      vars:
+        pakets:
+          - kubelet
+          - kubeadm
+          - kubectl
+          - kubernetes-cni
+          - nfs-common
+
+    - name: swapp swapoff
+      command: swapoff -a
+
+    - name: edit sysctl
+      sysctl:
+        name: net.bridge.bridge-nf-call-iptables
+        value: 1
+
+    - name: Clean artifact path
+      file:
+        state: absent
+        path: "/var/lib/ansible/"
+
+#    - name: download kubeadm config images
+#      command: kubeadm config images pull
+    - name: pull docker mailserver images
+      command: docker pull tvial/docker-mailserver:latest
+
+    - name: Download the docker-mailserver setup script
+      get_url:
+        url: https://raw.githubusercontent.com/tomav/docker-mailserver/master/setup.sh
+        dest: /root/setup.sh
+        mode: a+x
+
+    - name: Download the docker-compose.yml
+      get_url:
+        url: https://raw.githubusercontent.com/tomav/docker-mailserver/master/docker-compose.yml.dist
+        dest: /root/docker-compose.yml
+
+    - name: Download the docker .env file
+      get_url:
+        url: https://raw.githubusercontent.com/tomav/docker-mailserver/master/.env.dist
+        dest: /root/.env
